@@ -1,36 +1,10 @@
 /** @jsx React.DOM */
 
-var Signal = function() {
-};
-
-Signal.prototype = {
-  listeners : [],
-
-  tap: function(l) {
-    // Make a copy of the listeners to avoid the all too common
-    // subscribe-during-dispatch problem
-    this.listeners = this.listeners.slice(0);
-    this.listeners.push(l);
-  },
-
-  untap: function(l) {
-    var ix = this.listeners.indexOf(l);
-    if (ix == -1) {
-      return;
-    }
-
-    // Make a copy of the listeners to avoid the all to common
-    // unsubscribe-during-dispatch problem
-    this.listeners = this.listeners.slice(0);
-    this.listeners.splice(ix, 1);
-  },
-
-  raise: function() {
-    var args = Array.prototype.slice.call(arguments, 0);
-    this.listeners.forEach(function(l) {
-      l.apply(this, args);
-    });
-  }
+var defaultUrlParams = {
+  q: '',
+  i: 'nope',
+  files: '',
+  repos: '*'
 };
 
 var css = function(el, n, v) {
@@ -47,36 +21,6 @@ var FormatNumber = function(t) {
   return b.join(',');
 };
 
-var ParamsFromQueryString = function(qs, params) {
-  params = params || {};
-
-  if (!qs) {
-    return params;
-  }
-
-  qs.substring(1).split('&').forEach(function(v) {
-    var pair = v.split('=');
-    if (pair.length != 2) {
-      return;
-    }
-
-    params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-  });
-
-
-  return params;
-};
-
-var ParamsFromUrl = function(params) {
-  params = params || {
-    q: '',
-    i: 'nope',
-    files: '',
-    repos: '*'
-  };
-  return ParamsFromQueryString(location.search, params);
-};
-
 var ParamValueToBool = function(v) {
   v = v.toLowerCase();
   return v == 'fosho' || v == 'true' || v == '1';
@@ -88,18 +32,18 @@ var ParamValueToBool = function(v) {
  */
 var Model = {
   // raised when a search begins
-  willSearch: new Signal(),
+  willSearch: new lib.Signal(),
 
   // raised when a search completes
-  didSearch: new Signal(),
+  didSearch: new lib.Signal(),
 
-  willLoadMore: new Signal(),
+  willLoadMore: new lib.Signal(),
 
-  didLoadMore: new Signal(),
+  didLoadMore: new lib.Signal(),
 
-  didError: new Signal(),
+  didError: new lib.Signal(),
 
-  didLoadRepos : new Signal(),
+  didLoadRepos : new lib.Signal(),
 
   ValidRepos: function(repos) {
     var all = this.repos,
@@ -119,7 +63,7 @@ var Model = {
   Load: function() {
     var _this = this;
     var next = function() {
-      var params = ParamsFromUrl();
+      var params = lib.ParamsFromUrl(null, defaultUrlParams);
       _this.didLoadRepos.raise(_this, _this.repos);
 
       if (params.q !== '') {
@@ -753,7 +697,7 @@ var ResultView = React.createClass({
 
 var App = React.createClass({
   componentWillMount: function() {
-    var params = ParamsFromUrl(),
+    var params = lib.ParamsFromUrl(null, defaultUrlParams),
         repos = (params.repos == '') ? [] : params.repos.split(',');
 
     this.setState({
@@ -800,7 +744,7 @@ var App = React.createClass({
     });
 
     window.addEventListener('popstate', function(e) {
-      var params = ParamsFromUrl();
+      var params = lib.ParamsFromUrl(null, defaultUrlParams);
       _this.refs.searchBar.setParams(params);
       Model.Search(params);
     });
