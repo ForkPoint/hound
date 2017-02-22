@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"os"
 	"log"
-	"io"
+	"io/ioutil"
 
 	"github.com/etsy/hound/config"
 	"github.com/etsy/hound/index"
@@ -225,18 +223,15 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
 	m.HandleFunc("/api/v1/file", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json;charset=utf-8")
 		w.Header().Set("Access-Control-Allow", "*")
+
 		query := r.FormValue("file")
 		dat, err := ioutil.ReadFile(query)
-    		writeResp(w, string(dat))
-	})
 
-	m.HandleFunc("/api/v1/display-file", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json;charset=utf-8")
-		w.Header().Set("Access-Control-Allow", "*")
-		query := r.FormValue("file")
-		dat, err := ioutil.ReadFile(query)
-    		writeResp(w, string(dat))
-
+		if err == nil {
+			writeResp(w, string(dat))
+		} else {
+			writeError(w, err, 404)
+		}
 	})
 
 	m.HandleFunc("/api/v1/update", func(w http.ResponseWriter, r *http.Request) {
