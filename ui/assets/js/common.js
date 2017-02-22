@@ -3,6 +3,67 @@
 
 var lib = {
 
+    Signal : function() {
+      this.listeners = [];
+
+      this.tap = function(l) {
+        // Make a copy of the listeners to avoid the all too common
+        // subscribe-during-dispatch problem
+        this.listeners = this.listeners.slice(0);
+        this.listeners.push(l);
+      },
+
+      this.untap = function(l) {
+        var ix = this.listeners.indexOf(l);
+        if (ix == -1) {
+          return;
+        }
+
+        // Make a copy of the listeners to avoid the all to common
+        // unsubscribe-during-dispatch problem
+        this.listeners = this.listeners.slice(0);
+        this.listeners.splice(ix, 1);
+      },
+
+      this.raise = function() {
+        var args = Array.prototype.slice.call(arguments, 0);
+        this.listeners.forEach(function(l) {
+          l.apply(this, args);
+        });
+      }
+    },
+
+    ParamsFromQueryString : function(qs, params) {
+      params = params || {};
+
+      if (!qs) {
+        return params;
+      }
+
+      qs.substring(1).split('&').forEach(function(v) {
+        var pair = v.split('=');
+        if (pair.length != 2) {
+          return;
+        }
+
+        params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      });
+
+
+      return params;
+    },
+
+    ParamsFromUrl : function(params, defaults) {
+      params = params || defaults || {
+        q: '',
+        i: 'nope',
+        file : '',
+        files: '',
+        repos: '*'
+      };
+      return this.ParamsFromQueryString(location.search, params);
+    },
+
     ExpandVars: function(template, values) {
       for (var name in values) {
         template = template.replace('{' + name + '}', values[name]);
@@ -22,6 +83,13 @@ var lib = {
           url = url.replace(/\.wiki/, '/wiki')
           path = path.replace(/\.md$/, '')
           anchor = '' // wikis do not support direct line linking
+        }
+
+        // Determine if the URL passed is to a locally cloned and tracked repo
+        var fileUrl = /^file:\/\//.exec(url);
+        if (fileUrl) {
+          url = '/file?file=' + url.replace(/^file:\/\//, '')
+          anchor = '' // the local file template does not support direct line linking
         }
 
         // Hacky solution to fix _some more_ of the 404's when using SSH style URLs.

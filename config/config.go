@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -15,6 +16,8 @@ const (
 	defaultVcs                   = "git"
 	defaultBaseUrl               = "{url}/blob/master/{path}{anchor}"
 	defaultAnchor                = "#L{line}"
+	defaultLocalRepoBaseUrl      = "{url}/{path}{anchor}"
+	defaultLocalRepoAnchor       = ""
 )
 
 type UrlPattern struct {
@@ -88,6 +91,8 @@ func (r *Repo) VcsConfig() []byte {
 
 // Populate missing config values with default values.
 func initRepo(r *Repo) {
+	var isLocalRepo = strings.Contains(r.Url, "file://")
+
 	if r.MsBetweenPolls == 0 {
 		r.MsBetweenPolls = defaultMsBetweenPoll
 	}
@@ -97,17 +102,32 @@ func initRepo(r *Repo) {
 	}
 
 	if r.UrlPattern == nil {
-		r.UrlPattern = &UrlPattern{
-			BaseUrl: defaultBaseUrl,
-			Anchor:  defaultAnchor,
+		if isLocalRepo {
+			r.UrlPattern = &UrlPattern {
+				BaseUrl: defaultLocalRepoBaseUrl,
+				Anchor:  defaultLocalRepoAnchor,
+			}
+		} else {
+			r.UrlPattern = &UrlPattern{
+				BaseUrl: defaultBaseUrl,
+				Anchor:  defaultAnchor,
+			}
 		}
 	} else {
 		if r.UrlPattern.BaseUrl == "" {
-			r.UrlPattern.BaseUrl = defaultBaseUrl
+			if isLocalRepo {
+				r.UrlPattern.BaseUrl = defaultLocalRepoBaseUrl
+			} else {
+				r.UrlPattern.BaseUrl = defaultBaseUrl
+			}
 		}
 
 		if r.UrlPattern.Anchor == "" {
-			r.UrlPattern.Anchor = defaultAnchor
+			if isLocalRepo {
+				r.UrlPattern.Anchor = defaultLocalRepoAnchor
+			} else {
+				r.UrlPattern.Anchor = defaultAnchor
+			}
 		}
 	}
 }
