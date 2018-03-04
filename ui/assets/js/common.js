@@ -101,6 +101,14 @@ var lib = {
         // Finally, grab all remaining characters.
         var sshParts = /(git|hg)@(.*?)(:|\/)(.*)/.exec(url);
         if (sshParts) {
+          // Drop the SSH port
+          var pathParts = sshParts[4].split('/');
+          if (/\d+/.test(pathParts[0])) {
+              pathParts.shift();
+
+              sshParts[4] = pathParts.join('/');
+          }
+
           url = '//' + sshParts[2] + '/' + sshParts[4];
         }
 
