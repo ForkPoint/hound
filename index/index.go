@@ -65,6 +65,7 @@ type SearchResponse struct {
 
 type FileMatch struct {
 	Filename string
+	Filepath string
 	Matches  []*Match
 }
 
@@ -171,6 +172,7 @@ func (n *Index) Search(pat string, opt *SearchOptions) (*SearchResponse, error) 
 	for _, file := range files {
 		var matches []*Match
 		name := n.idx.Name(file)
+		path := filepath.Join(n.Ref.dir, "raw", name)
 		hasMatch := false
 
 		// reject files that do not match the file pattern
@@ -179,7 +181,7 @@ func (n *Index) Search(pat string, opt *SearchOptions) (*SearchResponse, error) 
 		}
 
 		filesOpened++
-		if err := g.grep2File(filepath.Join(n.Ref.dir, "raw", name), re, int(opt.LinesOfContext),
+		if err := g.grep2File(path, re, int(opt.LinesOfContext),
 			func(line []byte, lineno int, before [][]byte, after [][]byte) (bool, error) {
 
 				hasMatch = true
@@ -213,6 +215,7 @@ func (n *Index) Search(pat string, opt *SearchOptions) (*SearchResponse, error) 
 			filesCollected++
 			results = append(results, &FileMatch{
 				Filename: name,
+				Filepath: path,
 				Matches:  matches,
 			})
 		}
