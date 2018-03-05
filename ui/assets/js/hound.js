@@ -235,8 +235,8 @@ var Model = {
     return url.substring(bx + 1, ax) + ' / ' + name;
   },
 
-  UrlToRepo: function(repo, path, line, rev) {
-    return lib.UrlToRepo(this.repos[repo], path, line, rev);
+  UrlToRepo: function(repo, path, filePath, line, rev) {
+    return lib.UrlToRepo(this.repos[repo], path, filePath, line, rev);
   }
 
 };
@@ -590,13 +590,14 @@ var FilesView = React.createClass({
         totalMatches = this.props.totalMatches;
     var files = matches.map(function(match, index) {
       var filename = match.Filename,
+          filepath = match.Filepath,
           blocks = CoalesceMatches(match.Matches);
       var matches = blocks.map(function(block) {
         var lines = block.map(function(line) {
           var content = ContentFor(line, regexp);
           return (
             <div className="line">
-              <a href={Model.UrlToRepo(repo, filename, line.Number, rev)}
+              <a href={Model.UrlToRepo(repo, filename, filepath, line.Number, rev)}
                   className="lnum"
                   target="_blank">{line.Number}</a>
               <span className="lval" dangerouslySetInnerHTML={{__html:content}} />
@@ -612,7 +613,7 @@ var FilesView = React.createClass({
       return (
         <div className="file">
           <div className="title">
-            <a href={Model.UrlToRepo(repo, match.Filename, null, rev)}>
+            <a href={Model.UrlToRepo(repo, match.Filename, match.Filepath, null, rev)}>
               {match.Filename}
             </a>
           </div>
