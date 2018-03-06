@@ -1,10 +1,12 @@
 package api
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -224,8 +226,42 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
 		w.Header().Set("Content-Type", "application/json;charset=utf-8")
 		w.Header().Set("Access-Control-Allow", "*")
 
+		var (
+			dat []byte
+			err error
+			indexed bool
+			f *os.File
+			c *gzip.Reader
+		)
+
 		query := r.FormValue("file")
-		dat, err := ioutil.ReadFile(query)
+
+		if strings.Contains(query, "/raw/") {
+			idxDir := strings.Split(query, "/raw/")[0]
+			_, idxErr := index.Read(idxDir)
+
+			if idxErr == nil {
+				indexed = true
+			}
+		}
+
+		if indexed {
+			f, err = os.Open(query)
+
+			if err == nil {
+				c, err = gzip.NewReader(f)
+
+				if err == nil {
+					dat, err = ioutil.ReadAll(c)
+				}
+
+				defer c.Close()
+			}
+
+			defer f.Close()
+		} else {
+			dat, err = ioutil.ReadFile(query)
+		}
 
 		if err == nil {
 			writeResp(w, string(dat))

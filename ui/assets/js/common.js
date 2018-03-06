@@ -71,7 +71,7 @@ var lib = {
       return template;
     },
 
-    UrlToRepo: function(repo, path, line, rev) {
+    UrlToRepo: function(repo, path, filePath, line, rev) {
         var url = repo.url.replace(/\.git$/, ''),
             pattern = repo['url-pattern'],
             filename = path.substring(path.lastIndexOf('/') + 1),
@@ -91,6 +91,10 @@ var lib = {
           url = '/file?file=' + url.replace(/^file:\/\//, '')
           anchor = '' // the local file template does not support direct line linking
         }
+        
+        if (!fileUrl && repo.private) {
+          return '/file?file=' + filePath;
+        }
 
         // Hacky solution to fix _some more_ of the 404's when using SSH style URLs.
         // This works for both github style URLs (git@github.com:username/Foo.git) and
@@ -101,6 +105,14 @@ var lib = {
         // Finally, grab all remaining characters.
         var sshParts = /(git|hg)@(.*?)(:|\/)(.*)/.exec(url);
         if (sshParts) {
+          // Drop the SSH port
+          var pathParts = sshParts[4].split('/');
+          if (/\d+/.test(pathParts[0])) {
+              pathParts.shift();
+
+              sshParts[4] = pathParts.join('/');
+          }
+
           url = '//' + sshParts[2] + '/' + sshParts[4];
         }
 
