@@ -1,48 +1,105 @@
 # Hound
 
-[![Build Status](https://travis-ci.org/etsy/hound.svg?branch=master)](https://travis-ci.org/etsy/hound) [![Join the chat at https://gitter.im/etsy/Hound](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/etsy/Hound?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/hound-search/hound.svg?branch=master)](https://travis-ci.org/hound-search/hound)
+[![.github/workflows/go.yaml](https://github.com/hound-search/hound/workflows/.github/workflows/go.yaml/badge.svg)](https://github.com/hound-search/hound/actions)
 
 Hound is an extremely fast source code search engine. The core is based on this article (and code) from Russ Cox:
 [Regular Expression Matching with a Trigram Index](http://swtch.com/~rsc/regexp/regexp4.html). Hound itself is a static
 [React](http://facebook.github.io/react/) frontend that talks to a [Go](http://golang.org/) backend. The backend keeps an up-to-date index for each repository and answers searches through a minimal API. Here it is in action:
 
-![Hound Screen Capture](screen_capture.gif)
+![Hound Screen Capture](imgs/screen_capture.gif)
 
 ## Quick Start Guide
 
-### Using Go Tools
+### Building hound
 
-1. Use the Go tools to install Hound. The binaries `houndd` (server) and `hound` (cli) will be installed in your $GOPATH.
+0. Install [go](https://go.dev/) (minimum version required: 1.16) and [npm](https://github.com/npm/cli/#installation)
 
-```
-go get github.com/etsy/hound/cmds/...
-```
+1. Clone the repository and run make.
 
-2. Create a [config.json](config-example.json) in a directory with your list of repositories.
+  ```
+  git clone https://github.com/hound-search/hound.git
+  cd hound
+  make
+  ```
 
-3. Run the Hound server with `houndd` and you should see output similar to:
-````
-2015/03/13 09:07:42 Searcher started for statsd
-2015/03/13 09:07:42 Searcher started for Hound
-2015/03/13 09:07:42 All indexes built!
-2015/03/13 09:07:42 running server at http://localhost:6080...
-```
+  The resulting binaries (`hound`, `houndd`) can be found in the .build/bin/ directory.
 
-### Using Docker (1.4+)
+2. Create a config.json file and use it to list your repositories. Check out our [example-config.json](config-example.json)
+to see how to set up various types of repositories. For example, we can configure Hound to search its own source code using 
+the config found in [default-config.json](default-config.json):
 
-1. Create a [config.json](config-example.json) in a directory with your list of repositories.
+  ```json
+  {
+    "dbpath" : "db",
+    "repos" : {
+      "Hound" : {
+        "url" : "https://github.com/hound-search/hound.git",
+        "vcs-config" : {
+          "ref" : "main"
+        }
+      }
+    }
+  }
+  ```
 
-2. Run 
-```
-docker run -it --rm -p 6080:6080 --name houndd -v $(pwd):/hound etsy/hound
-```
+  A complete list of available config options can be found [here](docs/config-options.md).
 
-You should be able to navigate to [http://localhost:6080/](http://localhost:6080/) as usual.
+3. Run the Hound server with `houndd` in the same directory as your `config.json`. You should see output similar to:
+  ```
+  2015/03/13 09:07:42 Searcher started for statsd
+  2015/03/13 09:07:42 Searcher started for Hound
+  2015/03/13 09:07:42 All indexes built!
+  2015/03/13 09:07:42 running server at http://localhost:6080
+  ```
 
+4. By default, hound hosts a web ui at http://localhost:6080 . Open it in your browser, and start searching.
+
+### Using Docker (1.14+)
+
+0. [Install docker](https://docs.docker.com/get-docker/) if you don't have it. We need at least `Docker >= 1.14`.
+
+1. Create a config.json file and use it to list your repositories. Check out our [example-config.json](config-example.json) 
+to see how to set up various types of repositories. For example, we can configure Hound to search its own source code using 
+the config found in [default-config.json](default-config.json). 
+
+
+#### Run with image from github
+
+  ```
+  docker run -d -p 6080:6080 --name hound -v $(pwd):/data ghcr.io/hound-search/hound:latest
+  ```
+
+You should be able to navigate to [http://localhost:6080/](http://localhost:6080/) as usual. 
+
+#### Build image and container yourself
+
+0. Clone repository
+  ```
+  git clone https://github.com/hound-search/hound.git
+  cd hound
+  ```
+
+1. Build the image
+  ```
+  docker build . --tag=hound
+  ```
+
+2. Create the container
+  ```
+  docker create -p 6080:6080 --name hound -v $(pwd):/data hound
+  ```
+
+3. Starting and stopping the container
+  ```
+  docker start hound
+  docker stop hound
+  ```
 
 ## Running in Production
 
-There are no special flags to run Hound in production. You can use the `--addr=:6880` flag to control the port to which the server binds. Currently, Hound does not supports SSL/TLS as most users simply run Hound behind either Apache or nginx. Adding TLS support is pretty straight forward though if anyone wants to add it.
+There are no special flags to run Hound in production. You can use the `--addr=:6880` flag to control the port to which the server binds. 
+Currently, Hound does not support TLS as most users simply run Hound behind either Apache or nginx. However, we are open to contributions to add TLS support.
 
 ## Why Another Code Search Tool?
 
@@ -50,14 +107,14 @@ We've used many similar tools in the past, and most of them are either too slow,
 Which brings us to...
 
 ## Requirements
-* Go 1.3+
+* Go 1.16+
 
 Yup, that's it. You can proxy requests to the Go service through Apache/nginx/etc., but that's not required.
 
 
 ## Support
 
-Currently Hound is only tested on MacOS and CentOS, but it should work on any *nix system. Hound on Windows is not supported but we've heard it compiles and runs just fine.
+Currently Hound is only tested on MacOS and CentOS, but it should work on any *nix system. Hound on Windows is not supported but we've heard it compiles and runs just fine (although it helps to exclude your data folder from Windows Search Indexer).
 
 Hound supports the following version control systems: 
 
@@ -65,6 +122,7 @@ Hound supports the following version control systems:
 * Mercurial - use `"vcs" : "hg"` in the config
 * SVN - use `"vcs" : "svn"` in the config
 * Bazaar - use `"vcs" : "bzr"` in the config
+* Local - use `"vcs" : "local"` in the config
 
 See [config-example.json](config-example.json) for examples of how to use each VCS.
 
@@ -72,9 +130,9 @@ See [config-example.json](config-example.json) for examples of how to use each V
 
 There are a couple of ways to get Hound to index private repositories:
 
-* Use the `file://` protocol. This allows you to index any local folder, so you can clone the repository locally 
-and then reference the files directly. The downside here is that the polling to keep the repo up to date will
-not work.
+* Use the `local` pseudo-vcs driver. This allows you to index a local directory. You can set `"watch-changes" : true` to calculate a recursive hash of all the files in the directory and automatically re-index.
+* Use the `file://` protocol. This allows you to index a local clone of a repository. The downside here is that the polling to keep the repo up to date will
+not work. (This also doesn't work on local folders that are not of a supported repository type.) If you're using Docker, you must mount a volume to your repository (e.g., `-v $(pwd)/src:/src`) and use the relative path to the repo in your configuration.
 * Use SSH style URLs in the config: `"url" : "git@github.com:foo/bar.git"`. As long as you have your 
 [SSH keys](https://help.github.com/articles/generating-ssh-keys/) set up on the box where Hound is running this will work.
 
@@ -89,6 +147,7 @@ Currently the following editors have plugins that support Hound:
 * [Sublime Text](https://github.com/bgreenlee/SublimeHound)
 * [Vim](https://github.com/urthbound/hound.vim)
 * [Emacs](https://github.com/ryoung786/hound.el)
+* [Visual Studio Code](https://github.com/sjzext/vscode-hound)
 
 ## Hacking on Hound
 
@@ -96,34 +155,58 @@ Currently the following editors have plugins that support Hound:
 
 #### Requirements:
  * make
- * Node.js ([Installation Instructions](https://github.com/joyent/node/wiki/Installing-Node.js-via-package-manager))
- * React-tools (install w/ `npm -g install react-tools`)
-
-Hound includes tools to make building locally easy. It is recommended that you use these tools if you are working on Hound. To get setup and build, just run the following commands:
+ * [npm](https://github.com/npm/cli/#installation)
+ (Usuall npm comes bundled with Node.js. If that's not the case on the system you're using, you can get it [here](https://nodejs.org/en/download))
 
 ```
-git clone https://github.com/etsy/hound.git hound/src/github.com/etsy/hound
+git clone https://github.com/hound-search/hound.git
 cd hound
-src/github.com/etsy/hound/tools/setup
 make
 ```
+
+The hound executables will be available in `.build/bin`.
 
 ### Testing
 
 There are an increasing number of tests in each of the packages in Hound. Please make sure these pass before uploading your Pull Request. You can run the tests with the following command.
+To run the entire test suite, use:
 
 ```
 make test
 ```
 
+If you want to just run the JavaScript test suite, use:
+```
+npm test
+```
+
+Any Go files that end in `_test.go` are assumed to be test files.  Similarly, any JavaScript files that ends in `.test.js` are automatically run by Jest, our test runner. Tests should live next to the files that they cover. 
+[Check out Jest's docs](https://jestjs.io/docs/en/getting-started) for more details on writing Jest tests, 
+and [check out Go's testing docs](https://golang.org/pkg/testing/) for more details on testing Go code.
+
+You need to install `Node.js >= 12` and install `jest` by `npm install jest` to run the JS tests.
+
 ### Working on the web UI
 
-Hound includes a web UI that is composed of several files (html, css, javascript, etc.). To make sure hound works seamlessly with the standard Go tools, these resources are all bundled inside of the `houndd` binary. Note that changes to the UI will result in local changes to the `ui/bindata.go` file. You must include these changes in your Pull Request.
+Hound includes a web UI that is composed of several files (html, css, javascript, etc.).
+To compile UI changes use:
+
+```
+make ui
+```
 
 To make development easier, there is a flag that will read the files from the file system (allowing the much-loved edit/refresh cycle).
 
+First you should ensure you have all the dependencies installed that you need by running:
+
 ```
-bin/houndd --dev
+make dev
+```
+
+Then run the hound server with the --dev option:
+
+```
+.build/bin/houndd --dev
 ```
 
 ## Get in Touch
@@ -132,3 +215,17 @@ Created at [Etsy](https://www.etsy.com) by:
 
 * [Kelly Norton](https://github.com/kellegous)
 * [Jonathan Klein](https://github.com/jklein)
+
+Hound is maintained by:
+
+* [David Schott](https://github.com/dschott68)
+* [Jacob Rose](https://github.com/jacobrose)
+* [Nick Sawyer](https://github.com/nickmoorman)
+* [Salem Hilal](https://github.com/salemhilal)
+* [Brad Greenlee](https://github.com/bgreenlee)
+* [Jeffery Swensen](https://github.com/jeffswensen)
+* [Ifeanyi Agu](https://github.com/twizzyyanki)
+* [Joe Torraca](https://github.com/jvt)
+* [Gabe Aguilar](https://github.com/gmcaguilar)
+* [Greg Petroski](https://github.com/gpetroski)
+
