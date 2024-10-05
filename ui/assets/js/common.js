@@ -62,9 +62,15 @@ export function UrlParts(repo, path, line, rev) {
 }
 
 export function UrlToRepo(repo, path, line, rev) {
+    if (repo['serve-files']) {
+      return `/file?file=${path.replace('file://', '')}`;
+    }
+
     var urlParts = UrlParts(repo, path, line, rev),
         pattern = repo['url-pattern']
 
+    var url = ExpandVars(pattern['base-url'], urlParts);
+
     // I'm sure there is a nicer React/jsx way to do this:
-    return ExpandVars(pattern['base-url'], urlParts);
+    return url;
 }

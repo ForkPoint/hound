@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"log"
-	"io/ioutil"
 
 	"github.com/hound-search/hound/config"
 	"github.com/hound-search/hound/index"
@@ -93,7 +93,7 @@ func searchAll(
 		*filesOpened += r.res.FilesOpened
 	}
 
-	*duration = int(time.Now().Sub(startedAt).Seconds() * 1000)  //nolint
+	*duration = int(time.Now().Sub(startedAt).Seconds() * 1000) //nolint
 
 	return res, nil
 }
@@ -247,48 +247,41 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher, defaultMaxResult
 		w.Header().Set("Content-Type", "application/json;charset=utf-8")
 		w.Header().Set("Access-Control-Allow", "*")
 
-		var (
-			dat []byte
-			err error
-			indexed bool
-			f *os.File
-			c *gzip.Reader
-		)
-
 		query := r.FormValue("file")
+		dir := strings.Split(query, "/raw/")[0]
 
-		if strings.Contains(query, "/raw/") {
-			idxDir := strings.Split(query, "/raw/")[0]
-			_, idxErr := index.Read(idxDir)
-
-			if idxErr == nil {
-				indexed = true
-			}
-		}
-
-		if indexed {
-			f, err = os.Open(query)
-
-			if err == nil {
-				c, err = gzip.NewReader(f)
-
-				if err == nil {
-					dat, err = ioutil.ReadAll(c)
-				}
-
-				defer c.Close()
+		if _, err := index.Read(dir); err != nil {
+			data, err := os.ReadFile(query)
+			if err != nil {
+				writeError(w, err, 404)
+				return
 			}
 
-			defer f.Close()
-		} else {
-			dat, err = ioutil.ReadFile(query)
+			writeResp(w, string(data))
+			return
 		}
 
-		if err == nil {
-			writeResp(w, string(dat))
-		} else {
+		file, err := os.Open(query)
+		if err != nil {
 			writeError(w, err, 404)
+			return
 		}
+		defer file.Close()
+
+		reader, err := gzip.NewReader(file)
+		if err != nil {
+			writeError(w, err, 404)
+			return
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			writeError(w, err, 404)
+			return
+		}
+
+		writeResp(w, string(data))
 	})
 
 	m.HandleFunc("/api/v1/update", func(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +325,7 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher, defaultMaxResult
 
 		type Webhook struct {
 			Repository struct {
-				Name string
+				Name      string
 				Full_name string
 			}
 		}
@@ -342,7 +335,7 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher, defaultMaxResult
 		err := json.NewDecoder(r.Body).Decode(&h)
 
 		if err != nil {
-		   writeError(w,
+			writeError(w,
 				errors.New(http.StatusText(http.StatusBadRequest)),
 				http.StatusBadRequest)
 			return

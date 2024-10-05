@@ -52,9 +52,9 @@ func init() {
 		"/file": &content{
 			template: "file.tpl.html",
 			sources: []string{
-				"js/common.js",
 				"js/file.js",
 			},
+			tplType:  "html",
 		},
 
 		"/open_search.xml": &content{
