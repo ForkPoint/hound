@@ -20,11 +20,12 @@ var Model = {
       reqwest({
         url: '/api/v1/file',
         data: { file },
+        type: 'json',
         success: function (data) {
             _this.didLoadFile.raise(_this, data);
         },
         error: function (xhr, status, err) {
-          _this.didError.raise(_this, err);
+          _this.didError.raise(_this, xhr.statusText);
         },
       });
     } else {
