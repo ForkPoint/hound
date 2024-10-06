@@ -5,22 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"log"
-	"io/ioutil"
 
-	"github.com/etsy/hound/config"
-	"github.com/etsy/hound/index"
-	"github.com/etsy/hound/searcher"
+	"github.com/hound-search/hound/config"
+	"github.com/hound-search/hound/index"
+	"github.com/hound-search/hound/searcher"
 )
 
 const (
 	defaultLinesOfContext uint = 2
 	maxLinesOfContext     uint = 20
+	maxLimit              int  = 100000
 )
 
 type Stats struct {
@@ -92,7 +93,7 @@ func searchAll(
 		*filesOpened += r.res.FilesOpened
 	}
 
-	*duration = int(time.Now().Sub(startedAt).Seconds() * 1000)
+	*duration = int(time.Now().Sub(startedAt).Seconds() * 1000) //nolint
 
 	return res, nil
 }
@@ -104,10 +105,10 @@ func parseAsBool(v string) bool {
 }
 
 func parseAsRepoList(v string, idx map[string]*searcher.Searcher) []string {
-	v = strings.TrimSpace(strings.ToLower(v))
+	v = strings.TrimSpace(v)
 	var repos []string
 	if v == "*" {
-		for repo, _ := range idx {
+		for repo := range idx {
 			repos = append(repos, repo)
 		}
 		return repos
@@ -131,9 +132,23 @@ func parseAsUintValue(sv string, min, max, def uint) uint {
 		return max
 	}
 	if min != 0 && uint(iv) < min {
-		return max
+		return min
 	}
 	return uint(iv)
+}
+
+func parseAsIntValue(sv string, min, max, def int) int {
+	iv, err := strconv.ParseInt(sv, 10, 64)
+	if err != nil {
+		return def
+	}
+	if max != 0 && int(iv) > max {
+		return max
+	}
+	if min != 0 && int(iv) < min {
+		return min
+	}
+	return int(iv)
 }
 
 func parseRangeInt(v string, i *int) {
@@ -162,8 +177,7 @@ func parseRangeValue(rv string) (int, int) {
 	return b, e
 }
 
-func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
-
+func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher, defaultMaxResults int) {
 	m.HandleFunc("/api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]*config.Repo{}
 		for name, srch := range idx {
@@ -181,7 +195,14 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
 		query := r.FormValue("q")
 		opt.Offset, opt.Limit = parseRangeValue(r.FormValue("rng"))
 		opt.FileRegexp = r.FormValue("files")
+		opt.ExcludeFileRegexp = r.FormValue("excludeFiles")
 		opt.IgnoreCase = parseAsBool(r.FormValue("i"))
+		opt.LiteralSearch = parseAsBool(r.FormValue("literal"))
+		opt.MaxResults = parseAsIntValue(
+			r.FormValue("limit"),
+			-1,
+			maxLimit,
+			defaultMaxResults)
 		opt.LinesOfContext = parseAsUintValue(
 			r.FormValue("ctx"),
 			0,
@@ -226,48 +247,41 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
 		w.Header().Set("Content-Type", "application/json;charset=utf-8")
 		w.Header().Set("Access-Control-Allow", "*")
 
-		var (
-			dat []byte
-			err error
-			indexed bool
-			f *os.File
-			c *gzip.Reader
-		)
-
 		query := r.FormValue("file")
+		dir := strings.Split(query, "/raw/")[0]
 
-		if strings.Contains(query, "/raw/") {
-			idxDir := strings.Split(query, "/raw/")[0]
-			_, idxErr := index.Read(idxDir)
-
-			if idxErr == nil {
-				indexed = true
-			}
-		}
-
-		if indexed {
-			f, err = os.Open(query)
-
-			if err == nil {
-				c, err = gzip.NewReader(f)
-
-				if err == nil {
-					dat, err = ioutil.ReadAll(c)
-				}
-
-				defer c.Close()
+		if _, err := index.Read(dir); err != nil {
+			data, err := os.ReadFile(query)
+			if err != nil {
+				writeError(w, err, 404)
+				return
 			}
 
-			defer f.Close()
-		} else {
-			dat, err = ioutil.ReadFile(query)
+			writeResp(w, string(data))
+			return
 		}
 
-		if err == nil {
-			writeResp(w, string(dat))
-		} else {
+		file, err := os.Open(query)
+		if err != nil {
 			writeError(w, err, 404)
+			return
 		}
+		defer file.Close()
+
+		reader, err := gzip.NewReader(file)
+		if err != nil {
+			writeError(w, err, 404)
+			return
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			writeError(w, err, 404)
+			return
+		}
+
+		writeResp(w, string(data))
 	})
 
 	m.HandleFunc("/api/v1/update", func(w http.ResponseWriter, r *http.Request) {
@@ -296,6 +310,53 @@ func Setup(m *http.ServeMux, idx map[string]*searcher.Searcher) {
 				return
 
 			}
+		}
+
+		writeResp(w, "ok")
+	})
+
+	m.HandleFunc("/api/v1/github-webhook", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			writeError(w,
+				errors.New(http.StatusText(http.StatusMethodNotAllowed)),
+				http.StatusMethodNotAllowed)
+			return
+		}
+
+		type Webhook struct {
+			Repository struct {
+				Name      string
+				Full_name string
+			}
+		}
+
+		var h Webhook
+
+		err := json.NewDecoder(r.Body).Decode(&h)
+
+		if err != nil {
+			writeError(w,
+				errors.New(http.StatusText(http.StatusBadRequest)),
+				http.StatusBadRequest)
+			return
+		}
+
+		repo := h.Repository.Full_name
+
+		searcher := idx[h.Repository.Full_name]
+
+		if searcher == nil {
+			writeError(w,
+				fmt.Errorf("No such repository: %s", repo),
+				http.StatusNotFound)
+			return
+		}
+
+		if !searcher.Update() {
+			writeError(w,
+				fmt.Errorf("Push updates are not enabled for repository %s", repo),
+				http.StatusForbidden)
+			return
 		}
 
 		writeResp(w, "ok")

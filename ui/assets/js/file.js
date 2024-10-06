@@ -1,34 +1,32 @@
-/** @jsx React.DOM */
-
-
-var defaultUrlParams = {
-  file: ''
-};
+import { Signal } from "./signal";
+import reqwest from 'reqwest';
 
 /**
  * The data model for the UI is responsible for displaying local files.
  */
 var Model = {
 
-  didError: new lib.Signal(),
+  didError: new Signal(),
 
-  didLoadFile : new lib.Signal(),
+  didLoadFile : new Signal(),
 
   Load: function() {
     var _this = this;
-    var params = lib.ParamsFromUrl(null, defaultUrlParams);
 
-    if (params.file !== '') {
-      $.ajax({
+    var currentUrl = new URL(window.location.toString());
+    var file = currentUrl.searchParams.get('file');
+
+    if (file !== '') {
+      reqwest({
         url: '/api/v1/file',
-        dataType: 'json',
-        data : params,
-        success: function(data) {
-          _this.didLoadFile.raise(_this, data);
+        data: { file },
+        type: 'json',
+        success: function (data) {
+            _this.didLoadFile.raise(_this, data);
         },
-        error: function(xhr, status, err) {
-          _this.didError.raise(_this, err);
-        }
+        error: function (xhr, status, err) {
+          _this.didError.raise(_this, xhr.statusText);
+        },
       });
     } else {
       _this.didError.raise(_this, 'Missing required parameter "file"');

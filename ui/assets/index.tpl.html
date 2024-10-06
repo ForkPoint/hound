@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-        <title>Hound</title>
+        <title>{{ .Title }}</title>
         <link rel="stylesheet" href="css/octicons/octicons.css">
         <link rel="stylesheet" href="css/hound.css">
         <link rel="search" href="//{{ .Host }}/open_search.xml"
               type="application/opensearchdescription+xml"
-              title="Hound" />
+              title="{{ .Title }}" />
     </head>
     <body>
         <div id="root">
@@ -20,7 +20,6 @@
         var ModelData = {{ .ReposAsJson }};
         </script>
         <script src="js/react-{{.ReactVersion}}.min.js"></script>
-        <script src="js/jquery-{{.jQueryVersion}}.min.js"></script>
         {{ .Source }}
     </body>
 </html>
