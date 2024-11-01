@@ -1,4 +1,11 @@
-.vagrant
-.build
+/.vagrant
+/.build
+/node_modules
 .DS_Store
 *.exe
+/db
+/data
+/.idea
+dist/
+config.json
+/ui/.build

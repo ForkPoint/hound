@@ -1,8 +1,9 @@
-/** @jsx React.DOM */
+import {UrlToRepo} from './common';
+import reqwest from 'reqwest';
 
 var ExcludedRow = React.createClass({
   render: function() {
-    var url = lib.UrlToRepo(this.props.repo, this.props.file.Filename, this.props.file.Filepath, this.props.rev);
+    var url = UrlToRepo(this.props.repo, this.props.file.Filename, this.props.rev);
     return (
       <tr>
         <td className="name">
@@ -77,9 +78,9 @@ var RepoList = React.createClass({
 var FilterableExcludedFiles = React.createClass({
   getInitialState: function() {
     var _this = this;
-    $.ajax({
-      url: '/api/v1/repos',
-      dataType: 'json',
+    reqwest({
+      url: 'api/v1/repos',
+      type: 'json',
       success: function(data) {
         _this.setState({ repos: data });
       },
@@ -102,11 +103,10 @@ var FilterableExcludedFiles = React.createClass({
       searching: true,
       repo: this.state.repos[repo],
     });
-    $.ajax({
-      url: '/api/v1/excludes',
+    reqwest({
+      url: 'api/v1/excludes',
       data: {repo: repo},
-      type: 'GET',
-      dataType: 'json',
+      type: 'json',
       success: function(data) {
         _this.setState({ files: data, searching: false });
       },
